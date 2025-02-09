@@ -5,7 +5,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Data;
-using System.Media;  // Added for playing sound
+using System.Media;  // For playing sound
 using Microsoft.VisualBasic; // For Interaction.InputBox
 
 namespace GetEverythingDone
@@ -41,7 +41,7 @@ namespace GetEverythingDone
         /// <summary>
         /// Called every second while the timer is running.
         /// Updates both the display and the running task’s CurrentTime.
-        /// When the timer runs out, plays a sound.
+        /// When the timer runs out, plays a looping alert sound until the message box is dismissed.
         /// </summary>
         private void Timer_Tick(object sender, EventArgs e)
         {
@@ -59,9 +59,24 @@ namespace GetEverythingDone
             {
                 timer.Stop();
                 isTimerRunning = false;
-                // Play a sound when the timer runs out.
-                SystemSounds.Exclamation.Play();
+
+                // Create and start a looping alert sound.
+                // Ensure that "alert.wav" exists in your executable directory or update the path as needed.
+                SoundPlayer player = new SoundPlayer("Sounds/234523__foolboymedia__notification-up-2.wav");
+                try
+                {
+                    player.PlayLooping();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Alert sound could not be played: " + ex.Message);
+                }
+
+                // Show the time's up message (execution pauses here until dismissed)
                 MessageBox.Show("Time's up for the current session!");
+
+                // After the user dismisses the message box, stop the alert sound.
+                player.Stop();
 
                 if (currentRunningTask != null)
                 {
