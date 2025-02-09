@@ -5,7 +5,8 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Data;
-using System.Media;  // For playing sound
+using System.Media;      // For playing sound
+using System.IO;         // For reading credits.txt
 using Microsoft.VisualBasic; // For Interaction.InputBox
 
 namespace GetEverythingDone
@@ -60,9 +61,9 @@ namespace GetEverythingDone
                 timer.Stop();
                 isTimerRunning = false;
 
-                // Create and start a looping alert sound.
-                // Ensure that "alert.wav" exists in your executable directory or update the path as needed.
-                SoundPlayer player = new SoundPlayer("Sounds/234523__foolboymedia__notification-up-2.wav");
+                // Play the looping alert sound.
+                // Ensure that the file exists at the given path.
+                SoundPlayer player = new SoundPlayer(@"Sounds/234523__foolboymedia__notification-up-2.wav");
                 try
                 {
                     player.PlayLooping();
@@ -72,10 +73,10 @@ namespace GetEverythingDone
                     MessageBox.Show("Alert sound could not be played: " + ex.Message);
                 }
 
-                // Show the time's up message (execution pauses here until dismissed)
+                // Show the "Time's up" message. Execution will pause here until the user dismisses the message.
                 MessageBox.Show("Time's up for the current session!");
 
-                // After the user dismisses the message box, stop the alert sound.
+                // Stop the alert sound once the user dismisses the message.
                 player.Stop();
 
                 if (currentRunningTask != null)
@@ -219,6 +220,23 @@ namespace GetEverythingDone
                 remainingTime = TimeSpan.FromSeconds(scheduledTime);
                 selectedTask.CurrentTime = remainingTime;
                 TimerTextBlock.Text = remainingTime.ToString(@"mm\:ss");
+            }
+        }
+
+        /// <summary>
+        /// Reads the contents of credits.txt and displays them in a message box.
+        /// </summary>
+        private void About_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Read the attribution from credits.txt
+                string credits = File.ReadAllText("credits.txt");
+                MessageBox.Show(credits, "Credits", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not load credits: " + ex.Message);
             }
         }
     }

@@ -46,6 +46,7 @@
         <Button Content="Start Task" Click="StartTask_Click" Margin="5"/>
         <Button Content="Pause Task" Click="PauseTask_Click" Margin="5"/>
         <Button Content="Reset Timer" Click="ResetTimer_Click" Margin="5"/>
+        <Button Content="About" Click="About_Click" Margin="5"/>
       </StackPanel>
     </StackPanel>
   </Grid>
