@@ -4,6 +4,6 @@
              xmlns:local="clr-namespace:GetEverythingDone"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <local:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
     </Application.Resources>
 </Application>
