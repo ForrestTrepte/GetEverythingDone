@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Data;
+using System.Media;  // Added for playing sound
 using Microsoft.VisualBasic; // For Interaction.InputBox
 
 namespace GetEverythingDone
@@ -40,6 +41,7 @@ namespace GetEverythingDone
         /// <summary>
         /// Called every second while the timer is running.
         /// Updates both the display and the running task’s CurrentTime.
+        /// When the timer runs out, plays a sound.
         /// </summary>
         private void Timer_Tick(object sender, EventArgs e)
         {
@@ -57,6 +59,8 @@ namespace GetEverythingDone
             {
                 timer.Stop();
                 isTimerRunning = false;
+                // Play a sound when the timer runs out.
+                SystemSounds.Exclamation.Play();
                 MessageBox.Show("Time's up for the current session!");
 
                 if (currentRunningTask != null)
