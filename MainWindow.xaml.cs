@@ -1,153 +1,170 @@
 ﻿using System;
-using System.Collections.ObjectModel;
-using System.Timers;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.ComponentModel;
+using System.Windows.Threading;
+using System.Collections.ObjectModel;
+// For a simple input dialog
+using Microsoft.VisualBasic;
 
 namespace GetEverythingDone
 {
     public partial class MainWindow : Window
     {
-        public ObservableCollection<TaskItem> Tasks { get; set; } = new ObservableCollection<TaskItem>();
-        private Timer taskTimer;
-        private TaskItem currentTask;
-        public const double TEST_SESSION_DURATION_SECONDS = 10;
-        private double sessionMultiplier = TEST_SESSION_DURATION_SECONDS / 60.0;
+        // A collection to hold our tasks.
+        private ObservableCollection<TaskItem> tasks;
+        // DispatcherTimer to manage the countdown.
+        private DispatcherTimer timer;
+        private TimeSpan remainingTime;
+        private bool isTimerRunning = false;
+
+        // Base duration in minutes for a fresh task.
+        private readonly int baseDuration = 15;
+        // Additional minutes to add each time a task is continued.
+        private readonly int incrementDuration = 5;
 
         public MainWindow()
         {
             InitializeComponent();
-            DataContext = this;
+
+            tasks = new ObservableCollection<TaskItem>();
+            TaskListBox.ItemsSource = tasks;
+
+            timer = new DispatcherTimer();
+            timer.Interval = TimeSpan.FromSeconds(1);
+            timer.Tick += Timer_Tick;
         }
 
-        private void StopTask()
+        /// <summary>
+        /// Called each second while the timer is running.
+        /// </summary>
+        private void Timer_Tick(object sender, EventArgs e)
         {
-            if (currentTask != null)
+            if (remainingTime.TotalSeconds > 0)
             {
-                taskTimer.Stop();
-                int sessionTime = (int)(sessionMultiplier * (currentTask.SessionsCompleted + 1) * 60);
-                currentTask.TimeRemaining = sessionTime; // Reset to its last started session time
-                MessageBox.Show($"Task '{currentTask.Name}' stopped. It will restart with {sessionTime} seconds next time.");
-                currentTask = null;
-            }
-        }
-
-        private void AddTask_Click(object sender, RoutedEventArgs e)
-        {
-            if (!string.IsNullOrWhiteSpace(TaskInput.Text))
-            {
-                Tasks.Add(new TaskItem(TaskInput.Text));
-                TaskInput.Clear();
-            }
-        }
-
-        private void RemoveTask_Click(object sender, RoutedEventArgs e)
-        {
-            if (TaskList.SelectedItem is TaskItem task)
-            {
-                Tasks.Remove(task);
-            }
-        }
-
-        private void StartTask_Click(object sender, RoutedEventArgs e)
-        {
-            if (TaskList.SelectedItem is TaskItem task)
-            {
-                if (currentTask != null && currentTask != task)
-                {
-                    StopTask();
-                }
-
-                currentTask = task;
-
-                if (currentTask.TimeRemaining == 0)
-                {
-                    currentTask.TimeRemaining = (int)(sessionMultiplier * (currentTask.SessionsCompleted + 1) * 60);
-                }
-
-                if (taskTimer == null)
-                {
-                    taskTimer = new Timer(1000);
-                    taskTimer.Elapsed += UpdateTaskTime;
-                }
-
-                taskTimer.Start();
-                MessageBox.Show($"Task '{task.Name}' started with {task.TimeRemaining} seconds remaining.");
-            }
-        }
-
-        private void UpdateTaskTime(object sender, ElapsedEventArgs e)
-        {
-            if (currentTask != null && currentTask.TimeRemaining > 0)
-            {
-                currentTask.TimeRemaining--;
+                remainingTime = remainingTime.Subtract(TimeSpan.FromSeconds(1));
+                TimerTextBlock.Text = remainingTime.ToString(@"mm\:ss");
             }
             else
             {
-                TaskCompleted();
+                timer.Stop();
+                isTimerRunning = false;
+                MessageBox.Show("Time's up for the current session!");
+
+                // Increase the continuation count so that next time the task duration increases.
+                if (TaskListBox.SelectedItem is TaskItem currentTask)
+                {
+                    currentTask.ContinuationCount++;
+                }
+                TimerTextBlock.Text = "00:00";
             }
         }
 
-        private void TaskCompleted()
+        /// <summary>
+        /// Adds a new task after prompting the user for a description.
+        /// </summary>
+        private void AddTask_Click(object sender, RoutedEventArgs e)
         {
-            taskTimer.Stop();
-            currentTask.SessionsCompleted++;
-            currentTask.TimeRemaining = (int)(sessionMultiplier * (currentTask.SessionsCompleted + 1) * 60);
-            Dispatcher.Invoke(() => MessageBox.Show($"Task '{currentTask.Name}' completed session {currentTask.SessionsCompleted}. Next session will be {currentTask.TimeRemaining} seconds.", "Task Completed"));
-            currentTask = null;
+            // Using VisualBasic.Interaction.InputBox for simplicity
+            var input = Interaction.InputBox("Enter task description:", "Add Task", "New Task");
+            if (!string.IsNullOrWhiteSpace(input))
+            {
+                tasks.Add(new TaskItem { Title = input, ContinuationCount = 0 });
+            }
+        }
+
+        /// <summary>
+        /// Removes the selected task.
+        /// </summary>
+        private void RemoveTask_Click(object sender, RoutedEventArgs e)
+        {
+            if (TaskListBox.SelectedItem is TaskItem task)
+            {
+                tasks.Remove(task);
+            }
+        }
+
+        /// <summary>
+        /// Moves the selected task up in the list.
+        /// </summary>
+        private void MoveUp_Click(object sender, RoutedEventArgs e)
+        {
+            int selectedIndex = TaskListBox.SelectedIndex;
+            if (selectedIndex > 0)
+            {
+                var item = tasks[selectedIndex];
+                tasks.RemoveAt(selectedIndex);
+                tasks.Insert(selectedIndex - 1, item);
+                TaskListBox.SelectedIndex = selectedIndex - 1;
+            }
+        }
+
+        /// <summary>
+        /// Moves the selected task down in the list.
+        /// </summary>
+        private void MoveDown_Click(object sender, RoutedEventArgs e)
+        {
+            int selectedIndex = TaskListBox.SelectedIndex;
+            if (selectedIndex >= 0 && selectedIndex < tasks.Count - 1)
+            {
+                var item = tasks[selectedIndex];
+                tasks.RemoveAt(selectedIndex);
+                tasks.Insert(selectedIndex + 1, item);
+                TaskListBox.SelectedIndex = selectedIndex + 1;
+            }
+        }
+
+        /// <summary>
+        /// Starts the timer for the selected task using the recommended duration.
+        /// </summary>
+        private void StartTask_Click(object sender, RoutedEventArgs e)
+        {
+            if (TaskListBox.SelectedItem is TaskItem task)
+            {
+                CurrentTaskTextBlock.Text = task.Title;
+                // Calculate duration: base time + (number of continuations * increment)
+                int durationMinutes = baseDuration + task.ContinuationCount * incrementDuration;
+                remainingTime = TimeSpan.FromMinutes(durationMinutes);
+                TimerTextBlock.Text = remainingTime.ToString(@"mm\:ss");
+                timer.Start();
+                isTimerRunning = true;
+            }
+            else
+            {
+                MessageBox.Show("Please select a task first.");
+            }
+        }
+
+        /// <summary>
+        /// Pauses the timer.
+        /// </summary>
+        private void PauseTask_Click(object sender, RoutedEventArgs e)
+        {
+            if (isTimerRunning)
+            {
+                timer.Stop();
+                isTimerRunning = false;
+            }
+        }
+
+        /// <summary>
+        /// Resets the timer for the selected task.
+        /// </summary>
+        private void ResetTimer_Click(object sender, RoutedEventArgs e)
+        {
+            if (TaskListBox.SelectedItem is TaskItem task)
+            {
+                int durationMinutes = baseDuration + task.ContinuationCount * incrementDuration;
+                remainingTime = TimeSpan.FromMinutes(durationMinutes);
+                TimerTextBlock.Text = remainingTime.ToString(@"mm\:ss");
+            }
         }
     }
 
-    public class TaskItem : INotifyPropertyChanged
+    /// <summary>
+    /// Represents a task with a title and a count of how many times it has been continued.
+    /// </summary>
+    public class TaskItem
     {
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        private string _name;
-        private int _sessionsCompleted;
-        private double _timeRemaining;
-
-        public string Name
-        {
-            get => _name;
-            set
-            {
-                _name = value;
-                OnPropertyChanged(nameof(Name));
-            }
-        }
-
-        public int SessionsCompleted
-        {
-            get => _sessionsCompleted;
-            set
-            {
-                _sessionsCompleted = value;
-                OnPropertyChanged(nameof(SessionsCompleted));
-            }
-        }
-
-        public double TimeRemaining
-        {
-            get => _timeRemaining;
-            set
-            {
-                _timeRemaining = value;
-                OnPropertyChanged(nameof(TimeRemaining));
-            }
-        }
-
-        public TaskItem(string name)
-        {
-            Name = name;
-            SessionsCompleted = 0;
-            TimeRemaining = (int)(MainWindow.TEST_SESSION_DURATION_SECONDS); // Initialize with first run time
-        }
-
-        protected void OnPropertyChanged(string propertyName)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
+        public string Title { get; set; }
+        public int ContinuationCount { get; set; }
     }
 }
