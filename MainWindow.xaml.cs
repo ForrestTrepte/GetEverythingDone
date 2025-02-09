@@ -13,7 +13,7 @@ namespace GetEverythingDone
         public ObservableCollection<TaskItem> Tasks { get; set; } = new ObservableCollection<TaskItem>();
         private Timer taskTimer;
         private TaskItem currentTask;
-        private const double TEST_SESSION_DURATION_SECONDS = 10;
+        public const double TEST_SESSION_DURATION_SECONDS = 10;
         private double sessionMultiplier = TEST_SESSION_DURATION_SECONDS / 60.0;
 
         public MainWindow()
@@ -22,12 +22,15 @@ namespace GetEverythingDone
             DataContext = this;
         }
 
-        private void PauseTask()
+        private void StopTask()
         {
             if (currentTask != null)
             {
                 taskTimer.Stop();
-                MessageBox.Show($"Task '{currentTask.Name}' paused at {currentTask.TimeRemaining} seconds remaining.");
+                int sessionTime = (int)(sessionMultiplier * (currentTask.SessionsCompleted + 1) * 60);
+                currentTask.TimeRemaining = sessionTime; // Reset to its last started session time
+                MessageBox.Show($"Task '{currentTask.Name}' stopped. It will restart with {sessionTime} seconds next time.");
+                currentTask = null;
             }
         }
 
@@ -54,12 +57,15 @@ namespace GetEverythingDone
             {
                 if (currentTask != null && currentTask != task)
                 {
-                    PauseTask();
+                    StopTask();
                 }
 
                 currentTask = task;
-                int sessionTime = (int)(sessionMultiplier * (currentTask.SessionsCompleted + 1) * 60); // Convert to seconds
-                currentTask.TimeRemaining = sessionTime;
+
+                if (currentTask.TimeRemaining == 0)
+                {
+                    currentTask.TimeRemaining = (int)(sessionMultiplier * (currentTask.SessionsCompleted + 1) * 60);
+                }
 
                 if (taskTimer == null)
                 {
@@ -68,7 +74,7 @@ namespace GetEverythingDone
                 }
 
                 taskTimer.Start();
-                MessageBox.Show($"Task '{task.Name}' started for {sessionTime} seconds.");
+                MessageBox.Show($"Task '{task.Name}' started with {task.TimeRemaining} seconds remaining.");
             }
         }
 
@@ -88,8 +94,8 @@ namespace GetEverythingDone
         {
             taskTimer.Stop();
             currentTask.SessionsCompleted++;
-            currentTask.TimeRemaining = 0;
-            Dispatcher.Invoke(() => MessageBox.Show($"Task '{currentTask.Name}' completed session {currentTask.SessionsCompleted}.", "Task Completed"));
+            currentTask.TimeRemaining = (int)(sessionMultiplier * (currentTask.SessionsCompleted + 1) * 60);
+            Dispatcher.Invoke(() => MessageBox.Show($"Task '{currentTask.Name}' completed session {currentTask.SessionsCompleted}. Next session will be {currentTask.TimeRemaining} seconds.", "Task Completed"));
             currentTask = null;
         }
     }
@@ -136,7 +142,7 @@ namespace GetEverythingDone
         {
             Name = name;
             SessionsCompleted = 0;
-            TimeRemaining = 0;
+            TimeRemaining = (int)(MainWindow.TEST_SESSION_DURATION_SECONDS); // Initialize with first run time
         }
 
         protected void OnPropertyChanged(string propertyName)
