@@ -2,39 +2,44 @@
 using System.Windows;
 using System.Windows.Threading;
 using System.Collections.ObjectModel;
-// For a simple input dialog
-using Microsoft.VisualBasic;
+using System.ComponentModel;
+using System.Globalization;
+using System.Windows.Data;
+using Microsoft.VisualBasic; // For Interaction.InputBox
 
 namespace GetEverythingDone
 {
     public partial class MainWindow : Window
     {
-        // A collection to hold our tasks.
+        // Collection of tasks.
         private ObservableCollection<TaskItem> tasks;
-        // DispatcherTimer to manage the countdown.
+        // Global timer for the running task.
         private DispatcherTimer timer;
+        // Time remaining in the current session.
         private TimeSpan remainingTime;
+        // Flag to indicate if the timer is running.
         private bool isTimerRunning = false;
+        // Reference to the currently running task.
+        private TaskItem currentRunningTask;
 
-        // Base duration in minutes for a fresh task.
-        private readonly int baseDuration = 15;
-        // Additional minutes to add each time a task is continued.
-        private readonly int incrementDuration = 5;
+        // Base duration (in seconds) for a fresh task.
+        private readonly int baseDuration = 10;
+        // Additional seconds to add each time a task is continued.
+        private readonly int incrementDuration = 10;
 
         public MainWindow()
         {
             InitializeComponent();
-
             tasks = new ObservableCollection<TaskItem>();
             TaskListBox.ItemsSource = tasks;
-
             timer = new DispatcherTimer();
             timer.Interval = TimeSpan.FromSeconds(1);
             timer.Tick += Timer_Tick;
         }
 
         /// <summary>
-        /// Called each second while the timer is running.
+        /// Called every second while the timer is running.
+        /// Updates both the display and the running task’s CurrentTime.
         /// </summary>
         private void Timer_Tick(object sender, EventArgs e)
         {
@@ -42,6 +47,11 @@ namespace GetEverythingDone
             {
                 remainingTime = remainingTime.Subtract(TimeSpan.FromSeconds(1));
                 TimerTextBlock.Text = remainingTime.ToString(@"mm\:ss");
+                if (currentRunningTask != null)
+                {
+                    // Update the running task’s CurrentTime property.
+                    currentRunningTask.CurrentTime = remainingTime;
+                }
             }
             else
             {
@@ -49,35 +59,52 @@ namespace GetEverythingDone
                 isTimerRunning = false;
                 MessageBox.Show("Time's up for the current session!");
 
-                // Increase the continuation count so that next time the task duration increases.
-                if (TaskListBox.SelectedItem is TaskItem currentTask)
+                if (currentRunningTask != null)
                 {
-                    currentTask.ContinuationCount++;
+                    // When a task completes, increment its continuation count
+                    // and update its time for the next run.
+                    currentRunningTask.ContinuationCount++;
+                    currentRunningTask.CurrentTime = TimeSpan.FromSeconds(baseDuration + currentRunningTask.ContinuationCount * incrementDuration);
                 }
                 TimerTextBlock.Text = "00:00";
+                currentRunningTask = null;
             }
         }
 
         /// <summary>
-        /// Adds a new task after prompting the user for a description.
+        /// Adds a new task and initializes its time to the first run duration.
         /// </summary>
         private void AddTask_Click(object sender, RoutedEventArgs e)
         {
-            // Using VisualBasic.Interaction.InputBox for simplicity
             var input = Interaction.InputBox("Enter task description:", "Add Task", "New Task");
             if (!string.IsNullOrWhiteSpace(input))
             {
-                tasks.Add(new TaskItem { Title = input, ContinuationCount = 0 });
+                var newTask = new TaskItem
+                {
+                    Title = input,
+                    ContinuationCount = 0,
+                    // Initialize with the first run duration (10 seconds).
+                    CurrentTime = TimeSpan.FromSeconds(baseDuration)
+                };
+                tasks.Add(newTask);
             }
         }
 
         /// <summary>
         /// Removes the selected task.
+        /// If the removed task is currently running, stops the timer.
         /// </summary>
         private void RemoveTask_Click(object sender, RoutedEventArgs e)
         {
             if (TaskListBox.SelectedItem is TaskItem task)
             {
+                if (currentRunningTask == task)
+                {
+                    timer.Stop();
+                    isTimerRunning = false;
+                    currentRunningTask = null;
+                    TimerTextBlock.Text = "00:00";
+                }
                 tasks.Remove(task);
             }
         }
@@ -113,19 +140,36 @@ namespace GetEverythingDone
         }
 
         /// <summary>
-        /// Starts the timer for the selected task using the recommended duration.
+        /// Starts the selected task.
+        /// If a different task is already running, stops it and resets its time.
         /// </summary>
         private void StartTask_Click(object sender, RoutedEventArgs e)
         {
-            if (TaskListBox.SelectedItem is TaskItem task)
+            if (TaskListBox.SelectedItem is TaskItem selectedTask)
             {
-                CurrentTaskTextBlock.Text = task.Title;
-                // Calculate duration: base time + (number of continuations * increment)
-                int durationMinutes = baseDuration + task.ContinuationCount * incrementDuration;
-                remainingTime = TimeSpan.FromMinutes(durationMinutes);
-                TimerTextBlock.Text = remainingTime.ToString(@"mm\:ss");
+                // If another task is running, stop it and reset its time.
+                if (currentRunningTask != null && currentRunningTask != selectedTask)
+                {
+                    timer.Stop();
+                    isTimerRunning = false;
+                    // Reset the previous task's time to its full scheduled duration.
+                    currentRunningTask.CurrentTime = TimeSpan.FromSeconds(baseDuration + currentRunningTask.ContinuationCount * incrementDuration);
+                }
+
+                // Start or resume the selected task.
+                if (currentRunningTask != selectedTask)
+                {
+                    currentRunningTask = selectedTask;
+                    int scheduledTime = baseDuration + selectedTask.ContinuationCount * incrementDuration;
+                    // Ensure the task starts with its full scheduled duration.
+                    selectedTask.CurrentTime = TimeSpan.FromSeconds(scheduledTime);
+                    remainingTime = TimeSpan.FromSeconds(scheduledTime);
+                    TimerTextBlock.Text = remainingTime.ToString(@"mm\:ss");
+                }
+
                 timer.Start();
                 isTimerRunning = true;
+                CurrentTaskTextBlock.Text = selectedTask.Title;
             }
             else
             {
@@ -146,25 +190,64 @@ namespace GetEverythingDone
         }
 
         /// <summary>
-        /// Resets the timer for the selected task.
+        /// Resets the timer for the selected task to its full scheduled duration.
         /// </summary>
         private void ResetTimer_Click(object sender, RoutedEventArgs e)
         {
-            if (TaskListBox.SelectedItem is TaskItem task)
+            if (TaskListBox.SelectedItem is TaskItem selectedTask)
             {
-                int durationMinutes = baseDuration + task.ContinuationCount * incrementDuration;
-                remainingTime = TimeSpan.FromMinutes(durationMinutes);
+                int scheduledTime = baseDuration + selectedTask.ContinuationCount * incrementDuration;
+                remainingTime = TimeSpan.FromSeconds(scheduledTime);
+                selectedTask.CurrentTime = remainingTime;
                 TimerTextBlock.Text = remainingTime.ToString(@"mm\:ss");
             }
         }
     }
 
     /// <summary>
-    /// Represents a task with a title and a count of how many times it has been continued.
+    /// Represents a task with a title, a continuation count, and its current (or scheduled) run time.
+    /// Implements INotifyPropertyChanged so that UI bindings update when CurrentTime changes.
     /// </summary>
-    public class TaskItem
+    public class TaskItem : INotifyPropertyChanged
     {
+        private TimeSpan currentTime;
         public string Title { get; set; }
         public int ContinuationCount { get; set; }
+        public TimeSpan CurrentTime
+        {
+            get => currentTime;
+            set
+            {
+                if (currentTime != value)
+                {
+                    currentTime = value;
+                    OnPropertyChanged("CurrentTime");
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+
+    /// <summary>
+    /// Converter class to format a TimeSpan as a string in mm:ss format.
+    /// </summary>
+    public class TimeSpanToStringConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is TimeSpan ts)
+                return ts.ToString(@"mm\:ss");
+            return "00:00";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
