@@ -26,11 +26,16 @@
         </Grid>
 
         <!-- Task List -->
-        <ListBox x:Name="TaskList"
-                 Grid.Row="1"
-                 Margin="10"
-                 ItemsSource="{Binding Tasks}"
-                 DisplayMemberPath="Name"/>
+        <ListBox x:Name="TaskList" Grid.Row="1" Margin="10" ItemsSource="{Binding Tasks}">
+                <ListBox.ItemTemplate>
+                        <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding TimeRemaining, StringFormat='{}{0:0} sec'}" Width="80" Margin="5"/>
+                                <TextBlock Text="{Binding Name}" />
+                        </StackPanel>
+                        </DataTemplate>
+                </ListBox.ItemTemplate>
+        </ListBox>
 
         <!-- Buttons -->
         <StackPanel Grid.Row="2"

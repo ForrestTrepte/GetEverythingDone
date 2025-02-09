@@ -4,6 +4,7 @@ using System.Timers;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.ComponentModel;
 
 namespace GetEverythingDone
 {
@@ -12,7 +13,8 @@ namespace GetEverythingDone
         public ObservableCollection<TaskItem> Tasks { get; set; } = new ObservableCollection<TaskItem>();
         private Timer taskTimer;
         private TaskItem currentTask;
-        private int sessionMultiplier = 10;
+        private const double TEST_SESSION_DURATION_SECONDS = 10;
+        private double sessionMultiplier = TEST_SESSION_DURATION_SECONDS / 60.0;
 
         public MainWindow()
         {
@@ -42,11 +44,24 @@ namespace GetEverythingDone
             if (TaskList.SelectedItem is TaskItem task)
             {
                 currentTask = task;
-                int sessionTime = sessionMultiplier * (currentTask.SessionsCompleted + 1);
-                taskTimer = new Timer(sessionTime * 60000);
-                taskTimer.Elapsed += TaskCompleted;
+                int sessionTime = (int)(sessionMultiplier * (currentTask.SessionsCompleted + 1) * 60); // Convert to seconds
+                currentTask.TimeRemaining = sessionTime;
+                taskTimer = new Timer(1000);
+                taskTimer.Elapsed += UpdateTaskTime;
                 taskTimer.Start();
-                MessageBox.Show($"Task '{task.Name}' started for {sessionTime} minutes.");
+                MessageBox.Show($"Task '{task.Name}' started for {sessionTime} seconds.");
+            }
+        }
+
+        private void UpdateTaskTime(object sender, ElapsedEventArgs e)
+        {
+            if (currentTask != null && currentTask.TimeRemaining > 0)
+            {
+                currentTask.TimeRemaining--;
+            }
+            else
+            {
+                TaskCompleted(sender, e);
             }
         }
 
@@ -54,19 +69,59 @@ namespace GetEverythingDone
         {
             taskTimer.Stop();
             currentTask.SessionsCompleted++;
+            currentTask.TimeRemaining = 0;
             Dispatcher.Invoke(() => MessageBox.Show($"Task '{currentTask.Name}' completed session {currentTask.SessionsCompleted}.", "Task Completed"));
         }
     }
 
-    public class TaskItem
+    public class TaskItem : INotifyPropertyChanged
     {
-        public string Name { get; set; }
-        public int SessionsCompleted { get; set; }
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        private string _name;
+        private int _sessionsCompleted;
+        private double _timeRemaining;
+
+        public string Name
+        {
+            get => _name;
+            set
+            {
+                _name = value;
+                OnPropertyChanged(nameof(Name));
+            }
+        }
+
+        public int SessionsCompleted
+        {
+            get => _sessionsCompleted;
+            set
+            {
+                _sessionsCompleted = value;
+                OnPropertyChanged(nameof(SessionsCompleted));
+            }
+        }
+
+        public double TimeRemaining
+        {
+            get => _timeRemaining;
+            set
+            {
+                _timeRemaining = value;
+                OnPropertyChanged(nameof(TimeRemaining));
+            }
+        }
 
         public TaskItem(string name)
         {
             Name = name;
             SessionsCompleted = 0;
+            TimeRemaining = 0;
+        }
+
+        protected void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 }
