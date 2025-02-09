@@ -22,6 +22,15 @@ namespace GetEverythingDone
             DataContext = this;
         }
 
+        private void PauseTask()
+        {
+            if (currentTask != null)
+            {
+                taskTimer.Stop();
+                MessageBox.Show($"Task '{currentTask.Name}' paused at {currentTask.TimeRemaining} seconds remaining.");
+            }
+        }
+
         private void AddTask_Click(object sender, RoutedEventArgs e)
         {
             if (!string.IsNullOrWhiteSpace(TaskInput.Text))
@@ -43,11 +52,21 @@ namespace GetEverythingDone
         {
             if (TaskList.SelectedItem is TaskItem task)
             {
+                if (currentTask != null && currentTask != task)
+                {
+                    PauseTask();
+                }
+
                 currentTask = task;
                 int sessionTime = (int)(sessionMultiplier * (currentTask.SessionsCompleted + 1) * 60); // Convert to seconds
                 currentTask.TimeRemaining = sessionTime;
-                taskTimer = new Timer(1000);
-                taskTimer.Elapsed += UpdateTaskTime;
+
+                if (taskTimer == null)
+                {
+                    taskTimer = new Timer(1000);
+                    taskTimer.Elapsed += UpdateTaskTime;
+                }
+
                 taskTimer.Start();
                 MessageBox.Show($"Task '{task.Name}' started for {sessionTime} seconds.");
             }
@@ -61,16 +80,17 @@ namespace GetEverythingDone
             }
             else
             {
-                TaskCompleted(sender, e);
+                TaskCompleted();
             }
         }
 
-        private void TaskCompleted(object sender, ElapsedEventArgs e)
+        private void TaskCompleted()
         {
             taskTimer.Stop();
             currentTask.SessionsCompleted++;
             currentTask.TimeRemaining = 0;
             Dispatcher.Invoke(() => MessageBox.Show($"Task '{currentTask.Name}' completed session {currentTask.SessionsCompleted}.", "Task Completed"));
+            currentTask = null;
         }
     }
 
