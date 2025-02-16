@@ -25,9 +25,9 @@ namespace GetEverythingDone
         private TaskItem currentRunningTask;
 
         // Base duration (in seconds) for a fresh task.
-        private readonly int baseDuration = 10;
+        private readonly int baseDuration = 5 * 60;
         // Additional seconds to add each time a task is continued.
-        private readonly int incrementDuration = 10;
+        private readonly int incrementDuration = 5 * 60;
 
         public MainWindow()
         {
@@ -37,6 +37,12 @@ namespace GetEverythingDone
             timer = new DispatcherTimer();
             timer.Interval = TimeSpan.FromSeconds(1);
             timer.Tick += Timer_Tick;
+
+            if (App.DevelopmentMode)
+            {
+                baseDuration = 10;
+                incrementDuration = 10;
+            }
         }
 
         /// <summary>

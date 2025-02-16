@@ -13,5 +13,12 @@ namespace GetEverythingDone
     /// </summary>
     public partial class App : Application
     {
+        public static bool DevelopmentMode { get; private set; }
+
+        protected override void OnStartup(StartupEventArgs e)
+        {
+            base.OnStartup(e);
+            DevelopmentMode = e.Args.Contains("-dev");
+        }
     }
 }
